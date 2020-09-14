@@ -1,6 +1,6 @@
 // This is an advanced implementation of the algorithm described in the following paper:
 //   J. Zhang and S. Singh. LOAM: Lidar Odometry and Mapping in Real-time.
-//     Robotics: Science and Systems Conference (RSS). Berkeley, CA, July 2014. 
+//     Robotics: Science and Systems Conference (RSS). Berkeley, CA, July 2014.
 
 // Modifier: Tong Qin               qintonguav@gmail.com
 // 	         Shaozu Cao 		    saozu.cao@connect.ust.hk
@@ -48,6 +48,8 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include <eigen3/Eigen/Dense>
 #include <mutex>
 #include <queue>
@@ -211,6 +213,28 @@ int main(int argc, char **argv)
     ros::Publisher pubLaserOdometry = nh.advertise<nav_msgs::Odometry>("/laser_odom_to_init", 100);
 
     ros::Publisher pubLaserPath = nh.advertise<nav_msgs::Path>("/laser_odom_path", 100);
+
+    ros::Publisher pubTrackingOdometry = nh.advertise<nav_msgs::Odometry>("odom", 100);
+
+    tf2_ros::Buffer tfBuffer;
+    tf2_ros::TransformListener tfListener(tfBuffer);
+
+    std::string laser_frame, tracking_frame, map_frame;
+
+    if (!ros::param::get("map_frame", map_frame))
+    {
+        ROS_ERROR("Please provide a map_frame name via the parameter server");
+    }
+
+    if (!ros::param::get("tracking_frame", tracking_frame))
+    {
+        ROS_ERROR("Please provide a tracking_frame name via the parameter server");
+    }
+
+    if (!ros::param::get("laser_frame", laser_frame))
+    {
+        ROS_ERROR("Please provide a laser_frame name via the parameter server");
+    }
 
     nav_msgs::Path laserPath;
 
@@ -509,8 +533,8 @@ int main(int argc, char **argv)
 
             // publish odometry
             nav_msgs::Odometry laserOdometry;
-            laserOdometry.header.frame_id = "/camera_init";
-            laserOdometry.child_frame_id = "/laser_odom";
+            laserOdometry.header.frame_id = tracking_frame;
+            laserOdometry.child_frame_id = tracking_frame;  // we don't use velocities so it doesn't matter
             laserOdometry.header.stamp = ros::Time().fromSec(timeSurfPointsLessFlat);
             laserOdometry.pose.pose.orientation.x = q_w_curr.x();
             laserOdometry.pose.pose.orientation.y = q_w_curr.y();
@@ -519,17 +543,38 @@ int main(int argc, char **argv)
             laserOdometry.pose.pose.position.x = t_w_curr.x();
             laserOdometry.pose.pose.position.y = t_w_curr.y();
             laserOdometry.pose.pose.position.z = t_w_curr.z();
-            pubLaserOdometry.publish(laserOdometry);
+            //pubLaserOdometry.publish(laserOdometry);
+
+            nav_msgs::Odometry trackingOdometry(laserOdometry);
+
+            // transform pose from laser_frame to base_link frame
+            try
+            {
+                geometry_msgs::PoseStamped laserPose, trackingPose;
+                laserPose.header = laserOdometry.header;
+                laserPose.pose= laserOdometry.pose.pose;
+
+                tfBuffer.transform(laserPose, trackingPose, laser_frame);
+
+                trackingOdometry.header = trackingPose.header;
+                trackingOdometry.pose.pose = trackingPose.pose;
+                pubLaserOdometry.publish(trackingOdometry);
+                pubTrackingOdometry.publish(trackingOdometry);
+            }
+            catch (tf2::TransformException &ex)
+            {
+                ROS_WARN("Failure %s\n", ex.what());
+            }
 
             geometry_msgs::PoseStamped laserPose;
-            laserPose.header = laserOdometry.header;
-            laserPose.pose = laserOdometry.pose.pose;
-            laserPath.header.stamp = laserOdometry.header.stamp;
+            laserPose.header = trackingOdometry.header;
+            laserPose.pose = trackingOdometry.pose.pose;
+            laserPath.header.stamp = trackingOdometry.header.stamp;
             laserPath.poses.push_back(laserPose);
-            laserPath.header.frame_id = "/camera_init";
+            laserPath.header.frame_id = map_frame;
             pubLaserPath.publish(laserPath);
 
-            // transform corner features and plane features to the scan end point
+                        // transform corner features and plane features to the scan end point
             if (0)
             {
                 int cornerPointsLessSharpNum = cornerPointsLessSharp->points.size();

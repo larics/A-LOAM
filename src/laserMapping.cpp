@@ -1,6 +1,6 @@
 // This is an advanced implementation of the algorithm described in the following paper:
 //   J. Zhang and S. Singh. LOAM: Lidar Odometry and Mapping in Real-time.
-//     Robotics: Science and Systems Conference (RSS). Berkeley, CA, July 2014. 
+//     Robotics: Science and Systems Conference (RSS). Berkeley, CA, July 2014.
 
 // Modifier: Tong Qin               qintonguav@gmail.com
 // 	         Shaozu Cao 		    saozu.cao@connect.ust.hk
@@ -50,6 +50,8 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include <eigen3/Eigen/Dense>
 #include <ceres/ceres.h>
 #include <mutex>
@@ -124,7 +126,11 @@ std::queue<sensor_msgs::PointCloud2ConstPtr> cornerLastBuf;
 std::queue<sensor_msgs::PointCloud2ConstPtr> surfLastBuf;
 std::queue<sensor_msgs::PointCloud2ConstPtr> fullResBuf;
 std::queue<nav_msgs::Odometry::ConstPtr> odometryBuf;
-std::mutex mBuf;
+std::mutex mBuf, mTfBuf;
+
+tf2_ros::Buffer tfBuffer;
+
+std::string laser_frame, tracking_frame, map_frame;
 
 pcl::VoxelGrid<PointType> downSizeFilterCorner;
 pcl::VoxelGrid<PointType> downSizeFilterSurf;
@@ -212,11 +218,11 @@ void laserOdometryHandler(const nav_msgs::Odometry::ConstPtr &laserOdometry)
 	t_wodom_curr.z() = laserOdometry->pose.pose.position.z;
 
 	Eigen::Quaterniond q_w_curr = q_wmap_wodom * q_wodom_curr;
-	Eigen::Vector3d t_w_curr = q_wmap_wodom * t_wodom_curr + t_wmap_wodom; 
+	Eigen::Vector3d t_w_curr = q_wmap_wodom * t_wodom_curr + t_wmap_wodom;
 
 	nav_msgs::Odometry odomAftMapped;
-	odomAftMapped.header.frame_id = "/camera_init";
-	odomAftMapped.child_frame_id = "/aft_mapped";
+	odomAftMapped.header.frame_id = map_frame;
+	odomAftMapped.child_frame_id = tracking_frame;
 	odomAftMapped.header.stamp = laserOdometry->header.stamp;
 	odomAftMapped.pose.pose.orientation.x = q_w_curr.x();
 	odomAftMapped.pose.pose.orientation.y = q_w_curr.y();
@@ -228,7 +234,7 @@ void laserOdometryHandler(const nav_msgs::Odometry::ConstPtr &laserOdometry)
 	pubOdomAftMappedHighFrec.publish(odomAftMapped);
 }
 
-void process()
+void process(std::string map_frame, std::string laser_frame, std::string tracking_frame)
 {
 	while(1)
 	{
@@ -325,10 +331,10 @@ void process()
 				for (int j = 0; j < laserCloudHeight; j++)
 				{
 					for (int k = 0; k < laserCloudDepth; k++)
-					{ 
+					{
 						int i = laserCloudWidth - 1;
 						pcl::PointCloud<PointType>::Ptr laserCloudCubeCornerPointer =
-							laserCloudCornerArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k]; 
+							laserCloudCornerArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k];
 						pcl::PointCloud<PointType>::Ptr laserCloudCubeSurfPointer =
 							laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k];
 						for (; i >= 1; i--)
@@ -352,7 +358,7 @@ void process()
 			}
 
 			while (centerCubeI >= laserCloudWidth - 3)
-			{ 
+			{
 				for (int j = 0; j < laserCloudHeight; j++)
 				{
 					for (int k = 0; k < laserCloudDepth; k++)
@@ -518,7 +524,7 @@ void process()
 						if (i >= 0 && i < laserCloudWidth &&
 							j >= 0 && j < laserCloudHeight &&
 							k >= 0 && k < laserCloudDepth)
-						{ 
+						{
 							laserCloudValidInd[laserCloudValidNum] = i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k;
 							laserCloudValidNum++;
 							laserCloudSurroundInd[laserCloudSurroundNum] = i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k;
@@ -579,10 +585,10 @@ void process()
 						pointOri = laserCloudCornerStack->points[i];
 						//double sqrtDis = pointOri.x * pointOri.x + pointOri.y * pointOri.y + pointOri.z * pointOri.z;
 						pointAssociateToMap(&pointOri, &pointSel);
-						kdtreeCornerFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis); 
+						kdtreeCornerFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
 
 						if (pointSearchSqDis[4] < 1.0)
-						{ 
+						{
 							std::vector<Eigen::Vector3d> nearCorners;
 							Eigen::Vector3d center(0, 0, 0);
 							for (int j = 0; j < 5; j++)
@@ -609,7 +615,7 @@ void process()
 							Eigen::Vector3d unit_direction = saes.eigenvectors().col(2);
 							Eigen::Vector3d curr_point(pointOri.x, pointOri.y, pointOri.z);
 							if (saes.eigenvalues()[2] > 3 * saes.eigenvalues()[1])
-							{ 
+							{
 								Eigen::Vector3d point_on_line = center;
 								Eigen::Vector3d point_a, point_b;
 								point_a = 0.1 * unit_direction + point_on_line;
@@ -617,8 +623,8 @@ void process()
 
 								ceres::CostFunction *cost_function = LidarEdgeFactor::Create(curr_point, point_a, point_b, 1.0);
 								problem.AddResidualBlock(cost_function, loss_function, parameters, parameters + 4);
-								corner_num++;	
-							}							
+								corner_num++;
+							}
 						}
 						/*
 						else if(pointSearchSqDis[4] < 0.01 * sqrtDis)
@@ -631,7 +637,7 @@ void process()
 													laserCloudCornerFromMap->points[pointSearchInd[j]].z);
 								center = center + tmp;
 							}
-							center = center / 5.0;	
+							center = center / 5.0;
 							Eigen::Vector3d curr_point(pointOri.x, pointOri.y, pointOri.z);
 							ceres::CostFunction *cost_function = LidarDistanceFactor::Create(curr_point, center);
 							problem.AddResidualBlock(cost_function, loss_function, parameters, parameters + 4);
@@ -651,7 +657,7 @@ void process()
 						Eigen::Matrix<double, 5, 1> matB0 = -1 * Eigen::Matrix<double, 5, 1>::Ones();
 						if (pointSearchSqDis[4] < 1.0)
 						{
-							
+
 							for (int j = 0; j < 5; j++)
 							{
 								matA0(j, 0) = laserCloudSurfFromMap->points[pointSearchInd[j]].x;
@@ -696,7 +702,7 @@ void process()
 													laserCloudSurfFromMap->points[pointSearchInd[j]].z);
 								center = center + tmp;
 							}
-							center = center / 5.0;	
+							center = center / 5.0;
 							Eigen::Vector3d curr_point(pointOri.x, pointOri.y, pointOri.z);
 							ceres::CostFunction *cost_function = LidarDistanceFactor::Create(curr_point, center);
 							problem.AddResidualBlock(cost_function, loss_function, parameters, parameters + 4);
@@ -783,7 +789,7 @@ void process()
 			}
 			printf("add points time %f ms\n", t_add.toc());
 
-			
+
 			TicToc t_filter;
 			for (int i = 0; i < laserCloudValidNum; i++)
 			{
@@ -800,7 +806,7 @@ void process()
 				laserCloudSurfArray[ind] = tmpSurf;
 			}
 			printf("filter time %f ms \n", t_filter.toc());
-			
+
 			TicToc t_pub;
 			//publish surround map for every 5 frame
 			if (frameCount % 5 == 0)
@@ -816,7 +822,7 @@ void process()
 				sensor_msgs::PointCloud2 laserCloudSurround3;
 				pcl::toROSMsg(*laserCloudSurround, laserCloudSurround3);
 				laserCloudSurround3.header.stamp = ros::Time().fromSec(timeLaserOdometry);
-				laserCloudSurround3.header.frame_id = "/camera_init";
+				laserCloudSurround3.header.frame_id = map_frame;
 				pubLaserCloudSurround.publish(laserCloudSurround3);
 			}
 
@@ -831,7 +837,7 @@ void process()
 				sensor_msgs::PointCloud2 laserCloudMsg;
 				pcl::toROSMsg(laserCloudMap, laserCloudMsg);
 				laserCloudMsg.header.stamp = ros::Time().fromSec(timeLaserOdometry);
-				laserCloudMsg.header.frame_id = "/camera_init";
+				laserCloudMsg.header.frame_id = map_frame;
 				pubLaserCloudMap.publish(laserCloudMsg);
 			}
 
@@ -844,7 +850,7 @@ void process()
 			sensor_msgs::PointCloud2 laserCloudFullRes3;
 			pcl::toROSMsg(*laserCloudFullRes, laserCloudFullRes3);
 			laserCloudFullRes3.header.stamp = ros::Time().fromSec(timeLaserOdometry);
-			laserCloudFullRes3.header.frame_id = "/camera_init";
+			laserCloudFullRes3.header.frame_id = map_frame;
 			pubLaserCloudFullRes.publish(laserCloudFullRes3);
 
 			printf("mapping pub time %f ms \n", t_pub.toc());
@@ -852,8 +858,8 @@ void process()
 			printf("whole mapping time %f ms +++++\n", t_whole.toc());
 
 			nav_msgs::Odometry odomAftMapped;
-			odomAftMapped.header.frame_id = "/camera_init";
-			odomAftMapped.child_frame_id = "/aft_mapped";
+			odomAftMapped.header.frame_id = map_frame;
+			odomAftMapped.child_frame_id = tracking_frame;
 			odomAftMapped.header.stamp = ros::Time().fromSec(timeLaserOdometry);
 			odomAftMapped.pose.pose.orientation.x = q_w_curr.x();
 			odomAftMapped.pose.pose.orientation.y = q_w_curr.y();
@@ -868,10 +874,11 @@ void process()
 			laserAfterMappedPose.header = odomAftMapped.header;
 			laserAfterMappedPose.pose = odomAftMapped.pose.pose;
 			laserAfterMappedPath.header.stamp = odomAftMapped.header.stamp;
-			laserAfterMappedPath.header.frame_id = "/camera_init";
+			laserAfterMappedPath.header.frame_id = map_frame;
 			laserAfterMappedPath.poses.push_back(laserAfterMappedPose);
 			pubLaserAfterMappedPath.publish(laserAfterMappedPath);
 
+			geometry_msgs::PoseStamped laser_frame_pose, tracking_frame_pose;
 			static tf::TransformBroadcaster br;
 			tf::Transform transform;
 			tf::Quaternion q;
@@ -883,8 +890,8 @@ void process()
 			q.setY(q_w_curr.y());
 			q.setZ(q_w_curr.z());
 			transform.setRotation(q);
-			br.sendTransform(tf::StampedTransform(transform, odomAftMapped.header.stamp, "/camera_init", "/aft_mapped"));
 
+			br.sendTransform(tf::StampedTransform(transform, odomAftMapped.header.stamp, map_frame, tracking_frame));
 			frameCount++;
 		}
 		std::chrono::milliseconds dura(2);
@@ -925,13 +932,30 @@ int main(int argc, char **argv)
 
 	pubLaserAfterMappedPath = nh.advertise<nav_msgs::Path>("/aft_mapped_path", 100);
 
+	tf2_ros::TransformListener tfListener(tfBuffer);
+
+	if (!ros::param::get("map_frame", map_frame))
+	{
+			ROS_ERROR("Please provide a map_frame name via the parameter server");
+	}
+
+	if (!ros::param::get("tracking_frame", tracking_frame))
+	{
+			ROS_ERROR("Please provide a tracking_frame name via the parameter server");
+	}
+
+	if (!ros::param::get("laser_frame", laser_frame))
+	{
+			ROS_ERROR("Please provide a laser_frame name via the parameter server");
+	}
+
 	for (int i = 0; i < laserCloudNum; i++)
 	{
 		laserCloudCornerArray[i].reset(new pcl::PointCloud<PointType>());
 		laserCloudSurfArray[i].reset(new pcl::PointCloud<PointType>());
 	}
 
-	std::thread mapping_process{process};
+	std::thread mapping_process{process, map_frame, laser_frame, tracking_frame};
 
 	ros::spin();
 

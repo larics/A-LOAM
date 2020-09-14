@@ -9,8 +9,12 @@
     <param name="minimum_range" type="double" value="0.3"/>
 
 
-    <param name="mapping_line_resolution" type="double" value="0.2"/>
-    <param name="mapping_plane_resolution" type="double" value="0.4"/>
+    <param name="mapping_line_resolution" type="double" value="0.35"/>
+    <param name="mapping_plane_resolution" type="double" value="0.6"/>
+
+    <param name="map_frame" type="string" value="$(env UAV_NAMESPACE)/map"/>    <!-- Not used -->
+    <param name="laser_frame" type="string" value="$(env UAV_NAMESPACE)/velodyne"/>
+    <param name="tracking_frame" type="string" value="$(env UAV_NAMESPACE)/base_link"/>
 
     <node pkg="aloam_velodyne" type="ascanRegistration" name="ascanRegistration" output="screen" />
 
@@ -20,7 +24,7 @@
 
     <arg name="rviz" default="true" />
     <group if="$(arg rviz)">
-        <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find aloam_velodyne)/rviz_cfg/aloam_velodyne.rviz" />
+        <node pkg="rviz" type="rviz" name="rviz" args="-d $(find aloam_velodyne)/rviz_cfg/aloam_velodyne.rviz" />
     </group>
 
 </launch>

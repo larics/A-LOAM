@@ -8,6 +8,8 @@ Panels:
         - /Status1
         - /odometry1/odomPath1
         - /odometry1/PointCloud21
+        - /mapping1
+        - /mapping1/currPoints1
       Splitter Ratio: 0.5
     Tree Height: 524
   - Class: rviz/Selection
@@ -190,7 +192,7 @@ Visualization Manager:
           Radius: 0.029999999329447746
           Shaft Diameter: 0.10000000149011612
           Shaft Length: 0.10000000149011612
-          Topic: /aft_mapped_path
+          Topic: /blue/aft_mapped_path
           Unreliable: false
           Value: true
         - Alpha: 1
@@ -218,7 +220,7 @@ Visualization Manager:
           Size (Pixels): 3
           Size (m): 0.05000000074505806
           Style: Flat Squares
-          Topic: /laser_cloud_map
+          Topic: /blue/laser_cloud_map
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
@@ -248,7 +250,7 @@ Visualization Manager:
           Size (Pixels): 1
           Size (m): 0.05000000074505806
           Style: Squares
-          Topic: /laser_cloud_surround
+          Topic: /blue/laser_cloud_surround
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
@@ -268,9 +270,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 13.100000381469727
+          Max Intensity: 13.099699974060059
           Min Color: 0; 0; 0
-          Min Intensity: 2.0110790729522705
+          Min Intensity: 2.0508806705474854
           Name: currPoints
           Position Transformer: XYZ
           Queue Size: 10
@@ -278,7 +280,7 @@ Visualization Manager:
           Size (Pixels): 2
           Size (m): 0.009999999776482582
           Style: Points
-          Topic: /velodyne_cloud_registered
+          Topic: /blue/velodyne_cloud_registered
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
@@ -659,6 +661,8 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
+        blue:
+          Value: true
         blue/base_link:
           Value: true
         blue/imu_link:
@@ -666,6 +670,8 @@ Visualization Manager:
         blue/map:
           Value: true
         blue/velodyne:
+          Value: true
+        world:
           Value: true
       Marker Scale: 1
       Name: TF
@@ -709,25 +715,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 20.114152908325195
+      Distance: 123.30768585205078
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.6757969856262207
-        Y: 1.082263708114624
-        Z: -2.3097984790802
+        X: -4.3209943771362305
+        Y: -13.170988082885742
+        Z: -2.3097848892211914
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.48479700088500977
+      Pitch: 0.9647965431213379
       Target Frame: body
       Value: XYOrbit (rviz)
-      Yaw: 4.529999256134033
+      Yaw: 4.559999942779541
     Saved: ~
 Window Geometry:
   Displays:

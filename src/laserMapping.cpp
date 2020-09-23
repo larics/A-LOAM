@@ -59,6 +59,7 @@
 #include <thread>
 #include <iostream>
 #include <string>
+#include <std_msgs/Float64.h>
 
 #include "lidarFactor.hpp"
 #include "aloam_velodyne/common.h"
@@ -141,6 +142,7 @@ std::vector<float> pointSearchSqDis;
 PointType pointOri, pointSel;
 
 ros::Publisher pubLaserCloudSurround, pubLaserCloudMap, pubLaserCloudFullRes, pubOdomAftMapped, pubOdomAftMappedHighFrec, pubLaserAfterMappedPath;
+ros::Publisher pubMappingDuration;
 
 nav_msgs::Path laserAfterMappedPath;
 
@@ -857,6 +859,10 @@ void process(std::string map_frame, std::string laser_frame, std::string trackin
 
 			printf("whole mapping time %f ms +++++\n", t_whole.toc());
 
+			std_msgs::Float64 duration;
+			duration.data=t_whole.toc();
+			pubMappingDuration.publish(duration);
+
 			nav_msgs::Odometry odomAftMapped;
 			odomAftMapped.header.frame_id = map_frame;
 			odomAftMapped.child_frame_id = tracking_frame;
@@ -931,6 +937,8 @@ int main(int argc, char **argv)
 	pubOdomAftMappedHighFrec = nh.advertise<nav_msgs::Odometry>("/aft_mapped_to_init_high_frec", 100);
 
 	pubLaserAfterMappedPath = nh.advertise<nav_msgs::Path>("/aft_mapped_path", 100);
+
+	pubMappingDuration = nh.advertise<std_msgs::Float64>("/mapping_msecs",100);
 
 	tf2_ros::TransformListener tfListener(tfBuffer);
 

@@ -53,6 +53,7 @@
 #include <eigen3/Eigen/Dense>
 #include <mutex>
 #include <queue>
+#include <std_msgs/Float64.h>
 
 #include "aloam_velodyne/common.h"
 #include "aloam_velodyne/tic_toc.h"
@@ -215,6 +216,8 @@ int main(int argc, char **argv)
     ros::Publisher pubLaserPath = nh.advertise<nav_msgs::Path>("/laser_odom_path", 100);
 
     ros::Publisher pubTrackingOdometry = nh.advertise<nav_msgs::Odometry>("odom", 100);
+
+    ros::Publisher pubOdometryDuration = nh.advertise<std_msgs::Float64>("/odometry_msecs", 100);
 
     tf2_ros::Buffer tfBuffer;
     tf2_ros::TransformListener tfListener(tfBuffer);
@@ -636,6 +639,9 @@ int main(int argc, char **argv)
             }
             printf("publication time %f ms \n", t_pub.toc());
             printf("whole laserOdometry time %f ms \n \n", t_whole.toc());
+            std_msgs::Float64 duration;
+            duration.data = t_whole.toc();
+            pubOdometryDuration.publish(duration);
             if(t_whole.toc() > 100)
                 ROS_WARN("odometry process over 100ms");
 

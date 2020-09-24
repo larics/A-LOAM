@@ -142,7 +142,7 @@ std::vector<float> pointSearchSqDis;
 PointType pointOri, pointSel;
 
 ros::Publisher pubLaserCloudSurround, pubLaserCloudMap, pubLaserCloudFullRes, pubOdomAftMapped, pubOdomAftMappedHighFrec, pubLaserAfterMappedPath;
-ros::Publisher pubMappingDuration;
+ros::Publisher pubMappingDuration, pubPoseHighFreq, pubPoseLowFreq;
 
 nav_msgs::Path laserAfterMappedPath;
 
@@ -234,6 +234,11 @@ void laserOdometryHandler(const nav_msgs::Odometry::ConstPtr &laserOdometry)
 	odomAftMapped.pose.pose.position.y = t_w_curr.y();
 	odomAftMapped.pose.pose.position.z = t_w_curr.z();
 	pubOdomAftMappedHighFrec.publish(odomAftMapped);
+
+	geometry_msgs::PoseStamped poseAftMapped;
+	poseAftMapped.header.frame_id = map_frame;
+	poseAftMapped.pose = odomAftMapped.pose.pose;
+	pubPoseHighFreq.publish(poseAftMapped);
 }
 
 void process(std::string map_frame, std::string laser_frame, std::string tracking_frame)
@@ -876,6 +881,11 @@ void process(std::string map_frame, std::string laser_frame, std::string trackin
 			odomAftMapped.pose.pose.position.z = t_w_curr.z();
 			pubOdomAftMapped.publish(odomAftMapped);
 
+			geometry_msgs::PoseStamped poseAftMapped;
+			poseAftMapped.header.frame_id = map_frame;
+			poseAftMapped.pose = odomAftMapped.pose.pose;
+			pubPoseLowFreq.publish(poseAftMapped);
+
 			geometry_msgs::PoseStamped laserAfterMappedPose;
 			laserAfterMappedPose.header = odomAftMapped.header;
 			laserAfterMappedPose.pose = odomAftMapped.pose.pose;
@@ -939,6 +949,10 @@ int main(int argc, char **argv)
 	pubLaserAfterMappedPath = nh.advertise<nav_msgs::Path>("aft_mapped_path", 100);
 
 	pubMappingDuration = nh.advertise<std_msgs::Float64>("mapping_msecs",100);
+
+	pubPoseHighFreq = nh.advertise<geometry_msgs::PoseStamped>("aloam/pose/high_frequency", 100);
+
+	pubPoseLowFreq = nh.advertise<geometry_msgs::PoseStamped>("aloam/pose/low_frequency", 100);
 
 	tf2_ros::TransformListener tfListener(tfBuffer);
 

@@ -239,6 +239,32 @@ void laserOdometryHandler(const nav_msgs::Odometry::ConstPtr &laserOdometry)
 	poseAftMapped.header.frame_id = map_frame;
 	poseAftMapped.pose = odomAftMapped.pose.pose;
 	pubPoseHighFreq.publish(poseAftMapped);
+
+	// Publish transform
+
+	geometry_msgs::PoseStamped laserAfterMappedPose;
+	laserAfterMappedPose.header = odomAftMapped.header;
+	laserAfterMappedPose.pose = odomAftMapped.pose.pose;
+	laserAfterMappedPath.header.stamp = odomAftMapped.header.stamp;
+	laserAfterMappedPath.header.frame_id = map_frame;
+	laserAfterMappedPath.poses.push_back(laserAfterMappedPose);
+	pubLaserAfterMappedPath.publish(laserAfterMappedPath);
+
+	geometry_msgs::PoseStamped laser_frame_pose, tracking_frame_pose;
+	static tf::TransformBroadcaster br;
+	tf::Transform transform;
+	tf::Quaternion q;
+	transform.setOrigin(tf::Vector3(t_w_curr(0),
+									t_w_curr(1),
+									t_w_curr(2)));
+	q.setW(q_w_curr.w());
+	q.setX(q_w_curr.x());
+	q.setY(q_w_curr.y());
+	q.setZ(q_w_curr.z());
+	transform.setRotation(q);
+
+	br.sendTransform(tf::StampedTransform(transform, odomAftMapped.header.stamp, map_frame, tracking_frame));
+	frameCount++; // Remove this maybe?
 }
 
 void process(std::string map_frame, std::string laser_frame, std::string tracking_frame)
@@ -881,10 +907,12 @@ void process(std::string map_frame, std::string laser_frame, std::string trackin
 			odomAftMapped.pose.pose.position.z = t_w_curr.z();
 			pubOdomAftMapped.publish(odomAftMapped);
 
+
 			geometry_msgs::PoseStamped poseAftMapped;
 			poseAftMapped.header.frame_id = map_frame;
 			poseAftMapped.pose = odomAftMapped.pose.pose;
 			pubPoseLowFreq.publish(poseAftMapped);
+
 
 			geometry_msgs::PoseStamped laserAfterMappedPose;
 			laserAfterMappedPose.header = odomAftMapped.header;
@@ -893,7 +921,7 @@ void process(std::string map_frame, std::string laser_frame, std::string trackin
 			laserAfterMappedPath.header.frame_id = map_frame;
 			laserAfterMappedPath.poses.push_back(laserAfterMappedPose);
 			pubLaserAfterMappedPath.publish(laserAfterMappedPath);
-
+/*
 			geometry_msgs::PoseStamped laser_frame_pose, tracking_frame_pose;
 			static tf::TransformBroadcaster br;
 			tf::Transform transform;
@@ -909,6 +937,7 @@ void process(std::string map_frame, std::string laser_frame, std::string trackin
 
 			br.sendTransform(tf::StampedTransform(transform, odomAftMapped.header.stamp, map_frame, tracking_frame));
 			frameCount++;
+			*/
 		}
 		std::chrono::milliseconds dura(2);
         std::this_thread::sleep_for(dura);
